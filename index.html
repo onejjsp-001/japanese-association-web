@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f6f3eb" />
+    <link rel="icon" href="data:," />
+    <meta
+      name="description"
+      content="从日常核心词出发，联想可以直接开口照搬的日语说法。"
+    />
+    <title>ことばの枝｜日语联想学习</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <button id="backButton" class="back-button" type="button" aria-label="返回首页" hidden>
+          <span aria-hidden="true">←</span>
+          <span>返回</span>
+        </button>
+        <a class="brand" href="#" aria-label="ことばの枝首页">
+          <span class="brand-mark" aria-hidden="true">枝</span>
+          <span>ことばの枝</span>
+        </a>
+        <span class="topbar-spacer" aria-hidden="true"></span>
+      </header>
+
+      <main id="app" tabindex="-1">
+        <section id="homeView" class="view home-view" aria-labelledby="homeTitle">
+          <div class="hero">
+            <p class="eyebrow">日语开口联想</p>
+            <h1 id="homeTitle">想到一个词，<br />顺口说出一串话。</h1>
+            <p class="hero-copy">不讲语法，只给你日常真正会说的词和句子。</p>
+          </div>
+
+          <div id="themeGrid" class="theme-grid" aria-label="学习主题"></div>
+
+          <p class="home-tip">
+            <span aria-hidden="true">ひとつずつ</span>
+            像学母语一样，看到就说
+          </p>
+        </section>
+
+        <section id="topicView" class="view topic-view" aria-labelledby="topicTitle" hidden>
+          <div class="topic-heading">
+            <div>
+              <p id="topicJapanese" class="eyebrow"></p>
+              <h1 id="topicTitle"></h1>
+            </div>
+            <span id="topicIcon" class="topic-heading-icon" aria-hidden="true"></span>
+          </div>
+
+          <label class="search-box" for="searchInput">
+            <span class="search-icon" aria-hidden="true"></span>
+            <input
+              id="searchInput"
+              type="search"
+              inputmode="search"
+              autocomplete="off"
+              placeholder="搜索词根、联想说法或句子"
+            />
+          </label>
+
+          <p id="resultCount" class="result-count" aria-live="polite"></p>
+          <div id="branchList" class="branch-list"></div>
+
+          <div id="emptyState" class="empty-state" hidden>
+            <span aria-hidden="true">あれ？</span>
+            <p>没有找到相关说法</p>
+            <button id="clearSearchButton" type="button">清除搜索</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="modalBackdrop" class="modal-backdrop" hidden>
+      <section
+        id="categoryModal"
+        class="modal-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modalTitle"
+        tabindex="-1"
+      >
+        <header class="modal-header">
+          <div class="modal-title-group">
+            <p id="modalKana" class="modal-kana" lang="ja"></p>
+            <h2 id="modalTitle" lang="ja"></h2>
+            <p id="modalChinese" class="modal-chinese"></p>
+          </div>
+          <button id="modalCloseButton" class="modal-close" type="button" aria-label="关闭浮窗">×</button>
+        </header>
+        <div id="modalContent" class="modal-content"></div>
+      </section>
+    </div>
+
+    <script src="./data.js"></script>
+    <script src="./association-db.js"></script>
+    <script src="./association.js"></script>
+    <script src="./script.js"></script>
+  </body>
+</html>
