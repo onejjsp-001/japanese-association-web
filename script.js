@@ -31,12 +31,14 @@
   let searchOpenTimer = null;
   const hasCounterModule = typeof counterAssociationData !== "undefined";
   const associationTheme = window.AssociationModule?.theme || null;
+  const questionExpressionsTheme = window.QuestionExpressionsModule?.theme || null;
   const ALL_THEMES = [
     ...LEARNING_DATA,
     bodyAssociationData,
     ...(hasCounterModule ? [counterAssociationData] : []),
     fruitAssociationData,
-    ...(associationTheme ? [associationTheme] : [])
+    ...(associationTheme ? [associationTheme] : []),
+    ...(questionExpressionsTheme ? [questionExpressionsTheme] : [])
   ];
 
   function normalize(value) {
@@ -371,7 +373,7 @@
       card.className = `theme-card theme-card-${theme.id}`;
       card.dataset.themeId = theme.id;
       card.setAttribute("aria-label", `进入${theme.title}主题，${theme.description}`);
-      card.innerHTML = ["body-association", "counter-association", "fruit-association", "quick-association"].includes(theme.id)
+      card.innerHTML = ["body-association", "counter-association", "fruit-association", "quick-association", "question-expressions"].includes(theme.id)
         ? `
           <span class="body-association-home-badge">${theme.badge}</span>
           <span class="body-association-home-copy">
@@ -402,6 +404,9 @@
     if (!theme) return;
 
     clearTimeout(searchOpenTimer);
+    if (activeTheme?.id === "question-expressions" && theme.id !== "question-expressions") {
+      window.QuestionExpressionsModule?.leave();
+    }
     activeTheme = theme;
     activeQuery = "";
     const themeJapanese = getThemeJapanese(theme);
@@ -415,7 +420,9 @@
         ? "搜索水果、味道、动作或中文"
         : theme.id === "quick-association"
           ? "搜索日语、假名、中文、标签或关联"
-        : "搜索词根、联想说法或句子";
+        : theme.id === "question-expressions"
+          ? "搜索疑问词、句型、中文意思或使用场景"
+          : "搜索词根、联想说法或句子";
     document.documentElement.dataset.theme = theme.id;
     elements.homeView.hidden = true;
     elements.topicView.hidden = false;
@@ -425,9 +432,12 @@
     elements.app.focus({ preventScroll: true });
   }
 
-  function showHome() {
+  function showHome(options = {}) {
     clearTimeout(searchOpenTimer);
     if (activeTheme?.id === "quick-association") window.AssociationModule?.leave();
+    if (activeTheme?.id === "question-expressions") {
+      window.QuestionExpressionsModule?.leave({ preserveHash: options?.fromHistory === true });
+    }
     closeModal(false);
     activeTheme = null;
     activeQuery = "";
@@ -443,6 +453,7 @@
   function renderActiveTheme(rawQuery) {
     if (!activeTheme) return;
     activeQuery = normalize(rawQuery.trim());
+    if (activeTheme.layout !== "question-encyclopedia") elements.branchList.className = "branch-list";
 
     if (activeTheme.layout === "modal-categories") {
       renderCategoryCards(activeQuery);
@@ -459,6 +470,14 @@
         emptyState: elements.emptyState,
         query: rawQuery,
         utils: window.SiteUtils
+      });
+    } else if (activeTheme.layout === "question-encyclopedia") {
+      window.QuestionExpressionsModule?.render({
+        container: elements.branchList,
+        resultCount: elements.resultCount,
+        emptyState: elements.emptyState,
+        utils: window.SiteUtils,
+        showHome
       });
     } else {
       renderBranches(activeQuery);
@@ -2091,4 +2110,7 @@
   });
 
   createThemeCards();
+  if (questionExpressionsTheme && window.QuestionExpressionsModule?.isQuestionHash()) {
+    openTheme(questionExpressionsTheme.id);
+  }
 })();
