@@ -29,6 +29,8 @@
     loading: false,
     dbError: "",
     modalLastFocus: null,
+    modalKind: "",
+    pendingRoute: null,
     importedData: null
   };
 
@@ -37,8 +39,8 @@
     title: "随手联想",
     japaneseTitle: "随手联想",
     reading: "ずいそうれんそう",
-    meaning: "个人记录测试版",
-    badge: "测试版",
+    meaning: "记录自己的词、句子和关联",
+    badge: "我的内容",
     icon: "想",
     description: "记录、关联与个人备份",
     layout: "quick-association"
@@ -138,19 +140,19 @@
             word: category.title,
             reading: category.reading,
             meaning: category.meaning
-          }, "人体联想新版");
+          }, "人体联想");
           const words = [
             ...(category.items || []),
             ...(category.vocabularyGroups || []).flatMap((group) => group.items || [])
           ];
           words.forEach((item) => {
-            addSystemNode(map, "body", `${category.id}:${stablePart(item.word || item.text)}`, item, "人体联想新版");
+            addSystemNode(map, "body", `${category.id}:${stablePart(item.word || item.text)}`, item, "人体联想");
           });
           const expressions = category.expressions
             || (typeof bodyAssociationExpressionData !== "undefined" ? bodyAssociationExpressionData[category.id] : [])
             || [];
           expressions.forEach((item) => {
-            addSystemNode(map, "body", `${category.id}:expression:${stablePart(item.text)}`, item, "人体联想新版", "sentence");
+            addSystemNode(map, "body", `${category.id}:expression:${stablePart(item.text)}`, item, "人体联想", "sentence");
           });
           (category.examples || []).forEach((item) => {
             addSystemNode(map, "body", `${category.id}:example:${stablePart(item.text || item.example)}`, {
@@ -158,7 +160,7 @@
               reading: item.reading || item.exampleReading,
               meaning: item.meaning || item.translation,
               segments: item.segments
-            }, "人体联想新版", "sentence");
+            }, "人体联想", "sentence");
           });
         });
       });
@@ -209,7 +211,7 @@
       `;
       document.body.appendChild(backdrop);
       backdrop.addEventListener("click", (event) => {
-        if (event.target === backdrop || event.target.closest("[data-association-close]")) closeModal();
+        if (event.target === backdrop || event.target.closest("[data-association-close]")) requestCloseModal();
       });
     }
 
@@ -262,6 +264,11 @@
       state.loading = false;
       rebuildNodeMap();
       if (state.context?.container?.isConnected) renderHome();
+      if (state.pendingRoute) {
+        const pending = state.pendingRoute;
+        state.pendingRoute = null;
+        applyRoute(pending);
+      }
     }
   }
 
@@ -331,7 +338,7 @@
     container.innerHTML = html;
     resultCount.textContent = state.nodes.length
       ? `${state.nodes.length} 条个人记录 · ${state.links.length} 个关联`
-      : "测试版 · 记录保存在当前浏览器";
+      : "个人内容 · 记录保存在当前浏览器";
     emptyState.hidden = true;
   }
 
@@ -485,7 +492,11 @@
     if (action === "export") return exportPersonalData();
     if (action === "save-demos") return saveDemos();
     const nodeButton = event.target.closest("[data-association-node]");
-    if (nodeButton) openNodeDetail(nodeButton.dataset.associationNode, nodeButton.dataset.demoNode === "true");
+    if (nodeButton) window.AppRouter?.navigate({
+      theme: "quick-association",
+      item: nodeButton.dataset.associationNode,
+      demo: nodeButton.dataset.demoNode === "true" ? "true" : ""
+    });
   }
 
   function showModal(title, kicker, html, onReady) {
@@ -496,6 +507,7 @@
     document.getElementById("associationModalKicker").textContent = kicker;
     const content = document.getElementById("associationModalContent");
     content.innerHTML = html;
+    state.modalKind = "dialog";
     backdrop.hidden = false;
     document.body.classList.add("modal-open");
     backdrop.querySelector(".association-modal").focus({ preventScroll: true });
@@ -510,6 +522,16 @@
     document.getElementById("associationModalContent").replaceChildren();
     if (restoreFocus && state.modalLastFocus?.focus) state.modalLastFocus.focus();
     state.modalLastFocus = null;
+    state.modalKind = "";
+  }
+
+  function requestCloseModal() {
+    const route = window.AppRouter?.current();
+    if (state.modalKind === "detail" && route?.theme === "quick-association" && route.item) {
+      window.AppRouter.back();
+    } else {
+      closeModal();
+    }
   }
 
   function openEditor(node = null, options = {}) {
@@ -668,7 +690,11 @@
     `, (content) => {
       content.addEventListener("click", async (event) => {
         const linked = event.target.closest("[data-linked-node]");
-        if (linked) return openNodeDetail(linked.dataset.linkedNode, linked.dataset.demoNode === "true");
+        if (linked) return window.AppRouter?.navigate({
+          theme: "quick-association",
+          item: linked.dataset.linkedNode,
+          demo: linked.dataset.demoNode === "true" ? "true" : ""
+        });
         const unlink = event.target.closest("[data-unlink]");
         if (unlink) {
           await AssociationDB.deleteLink(unlink.dataset.unlink);
@@ -697,6 +723,7 @@
         }
       });
     });
+    state.modalKind = "detail";
   }
 
   function renderLinkSection(title, links, currentId, reverse, demo) {
@@ -913,8 +940,25 @@
     toastTimer = setTimeout(() => { element.hidden = true; }, 2600);
   }
 
+  function applyRoute(route = {}) {
+    if (!state.context) return;
+    if (!route.item) {
+      closeModal(false);
+      return;
+    }
+    if (!state.ready && !state.nodeMap.has(route.item)) {
+      state.pendingRoute = { ...route };
+      return;
+    }
+    if (!state.nodeMap.has(route.item)) {
+      window.AppRouter?.replace({ theme: "quick-association" });
+      return;
+    }
+    openNodeDetail(route.item, route.demo === "true");
+  }
+
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !document.getElementById("associationBackdrop")?.hidden) closeModal();
+    if (event.key === "Escape" && !document.getElementById("associationBackdrop")?.hidden) requestCloseModal();
   });
 
   window.AssociationModule = {
@@ -922,6 +966,7 @@
     render,
     leave,
     closeModal,
+    applyRoute,
     buildSystemNodes
   };
 })();

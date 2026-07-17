@@ -3829,3 +3829,355 @@ rt {
     font-size: 13px;
   }
 }
+
+/* 首页信息架构与统一搜索 */
+.home-view .hero {
+  padding: 26px 4px 22px;
+}
+
+.home-view .hero h1 {
+  font-size: clamp(29px, 8.5vw, 43px);
+  line-height: 1.28;
+}
+
+.home-view .hero-copy {
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.home-search-panel {
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 253, 248, 0.84);
+  box-shadow: 0 9px 26px rgba(32, 48, 44, 0.055);
+}
+
+.home-search-heading,
+.home-module-heading,
+.unified-search-group-heading,
+.unified-search-result-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.home-section-kicker {
+  margin: 0 0 3px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.home-search-heading h2,
+.home-module-heading h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+}
+
+.home-search-heading > span,
+.home-module-heading > span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.home-search-box {
+  display: grid;
+  min-height: 52px;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 13px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--surface);
+}
+
+.home-search-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(35, 107, 92, 0.12);
+}
+
+.home-search-box input {
+  width: 100%;
+  min-width: 0;
+  padding: 14px 0;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  background: transparent;
+  font-size: 16px;
+}
+
+.home-search-box button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--muted);
+  background: var(--bg);
+  cursor: pointer;
+  font-size: 20px;
+}
+
+.home-search-status {
+  min-height: 18px;
+  margin: 8px 3px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.home-search-results {
+  display: grid;
+  gap: 14px;
+  max-height: min(62svh, 560px);
+  margin-top: 7px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.home-module-groups {
+  display: grid;
+  gap: 27px;
+  margin-top: 26px;
+}
+
+.home-module-section {
+  min-width: 0;
+}
+
+.home-module-heading {
+  margin: 0 3px 11px;
+}
+
+.home-module-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.home-module-section .theme-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.home-module-section--quick-association .theme-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.home-module-section .theme-card {
+  min-width: 0;
+  min-height: 132px;
+  padding: 15px;
+  border-radius: 20px;
+}
+
+.home-module-section .theme-card--featured {
+  min-height: 166px;
+  grid-column: 1 / -1;
+  padding: 20px;
+}
+
+.home-module-section .body-association-home-copy {
+  padding-top: 20px;
+}
+
+.home-module-section .body-association-home-title {
+  font-size: clamp(17px, 5vw, 22px);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.home-module-section .theme-card--featured .body-association-home-title {
+  font-size: clamp(22px, 6vw, 29px);
+}
+
+.home-module-section .body-association-home-meaning {
+  max-width: 21em;
+  margin-top: 5px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.home-module-section .theme-icon {
+  font-size: 37px;
+}
+
+.home-module-section .theme-card--featured .theme-icon {
+  font-size: 51px;
+}
+
+.home-module-section .theme-arrow {
+  right: 14px;
+  bottom: 13px;
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+}
+
+.home-module-section .body-association-home-badge {
+  top: 13px;
+  left: 14px;
+  padding: 4px 7px;
+  font-size: 9px;
+}
+
+.module-search-results-host {
+  margin-top: 13px;
+}
+
+.module-search-results,
+.unified-search-group,
+.unified-search-list {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.unified-search-group + .unified-search-group {
+  margin-top: 8px;
+}
+
+.unified-search-group-heading {
+  padding: 0 3px;
+}
+
+.unified-search-group-heading h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.unified-search-group-heading span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.unified-search-result {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 84px;
+  gap: 4px;
+  padding: 13px 45px 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  color: var(--text);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+}
+
+.unified-search-result:hover,
+.unified-search-result:focus-visible {
+  border-color: var(--accent);
+  outline: 0;
+  background: #f0f5f2;
+}
+
+.unified-search-result-topline {
+  justify-content: flex-start;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.unified-search-result-topline small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.unified-search-result > strong {
+  font-size: 17px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.unified-search-result-meaning {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.unified-search-result-arrow {
+  position: absolute;
+  top: 50%;
+  right: 15px;
+  color: var(--accent);
+  font-size: 18px;
+  transform: translateY(-50%);
+}
+
+.unified-search-more {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  color: var(--accent-dark);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.unified-search-note,
+.unified-search-empty {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 13px;
+  color: var(--muted);
+  background: rgba(226, 238, 233, 0.55);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+@media (min-width: 560px) {
+  .home-module-section .theme-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .home-module-section .theme-card--featured {
+    grid-column: span 2;
+  }
+
+  .home-module-section--quick-association .theme-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .unified-search-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 340px) {
+  .home-module-section .theme-card {
+    min-height: 126px;
+    padding: 13px;
+  }
+
+  .home-module-section .body-association-home-title {
+    font-size: 16px;
+  }
+
+  .home-module-section .theme-icon {
+    font-size: 32px;
+  }
+
+  .home-search-heading > span {
+    display: none;
+  }
+}

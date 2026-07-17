@@ -8,6 +8,10 @@
     homeView: document.getElementById("homeView"),
     topicView: document.getElementById("topicView"),
     themeGrid: document.getElementById("themeGrid"),
+    homeSearchInput: document.getElementById("homeSearchInput"),
+    homeSearchStatus: document.getElementById("homeSearchStatus"),
+    homeSearchResults: document.getElementById("homeSearchResults"),
+    clearHomeSearchButton: document.getElementById("clearHomeSearchButton"),
     topicJapanese: document.getElementById("topicJapanese"),
     topicTitle: document.getElementById("topicTitle"),
     topicIcon: document.getElementById("topicIcon"),
@@ -28,7 +32,7 @@
   let activeTheme = null;
   let activeQuery = "";
   let lastFocusedElement = null;
-  let searchOpenTimer = null;
+  let homeSearchExpanded = false;
   const hasCounterModule = typeof counterAssociationData !== "undefined";
   const associationTheme = window.AssociationModule?.theme || null;
   const questionExpressionsTheme = window.QuestionExpressionsModule?.theme || null;
@@ -363,39 +367,168 @@
     return null;
   }
 
-  function createThemeCards() {
+  function createSearchResultCard(result, includeSource = false) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "unified-search-result";
+    button.dataset.searchRoute = JSON.stringify(result.route);
+    button.innerHTML = `
+      <span class="unified-search-result-topline">
+        <span>${escapeHTML(result.reason)}</span>
+        ${includeSource ? `<small>来源：${escapeHTML(result.source)}</small>` : ""}
+      </span>
+      <strong lang="ja">${renderRubyText(result.title, result.reading)}</strong>
+      ${result.meaning ? `<span class="unified-search-result-meaning">${escapeHTML(result.meaning)}</span>` : ""}
+      <span class="unified-search-result-arrow" aria-hidden="true">→</span>
+    `;
+    return button;
+  }
+
+  function appendSearchGroup(container, title, items, limit, includeSource) {
+    if (!items.length) return 0;
+    const section = document.createElement("section");
+    section.className = "unified-search-group";
+    const heading = document.createElement("div");
+    heading.className = "unified-search-group-heading";
+    const headingTitle = document.createElement("h3");
+    headingTitle.textContent = title;
+    const count = document.createElement("span");
+    count.textContent = `${items.length} 条`;
+    heading.append(headingTitle, count);
+    const list = document.createElement("div");
+    list.className = "unified-search-list";
+    items.slice(0, limit).forEach((item) => list.appendChild(createSearchResultCard(item, includeSource)));
+    section.append(heading, list);
+    container.appendChild(section);
+    return Math.max(0, items.length - limit);
+  }
+
+  function renderSearchResults(container, result, options = {}) {
+    const initialLimits = result.shortQuery
+      ? { core: 10, related: 6, examples: 0 }
+      : { core: 12, related: 10, examples: 6 };
+    const expanded = Boolean(options.expanded);
+    const limits = expanded
+      ? { core: result.groups.core.length, related: result.groups.related.length, examples: result.groups.examples.length }
+      : initialLimits;
     const fragment = document.createDocumentFragment();
+    let hiddenCount = 0;
+    hiddenCount += appendSearchGroup(fragment, "核心条目", result.groups.core, limits.core, options.includeSource);
+    hiddenCount += appendSearchGroup(fragment, "相关表达", result.groups.related, limits.related, options.includeSource);
+    if (!result.shortQuery || expanded) {
+      hiddenCount += appendSearchGroup(fragment, "例句与详细说明中出现", result.groups.examples, limits.examples, options.includeSource);
+    } else {
+      hiddenCount += result.groups.examples.length;
+    }
 
-    ALL_THEMES.forEach((theme) => {
-      const themeJapanese = getThemeJapanese(theme);
-      const card = document.createElement("button");
-      card.type = "button";
-      card.className = `theme-card theme-card-${theme.id}`;
-      card.dataset.themeId = theme.id;
-      card.setAttribute("aria-label", `进入${theme.title}主题，${theme.description}`);
-      card.innerHTML = ["body-association", "counter-association", "fruit-association", "quick-association", "question-expressions"].includes(theme.id)
-        ? `
-          <span class="body-association-home-badge">${theme.badge}</span>
-          <span class="body-association-home-copy">
-            <span class="body-association-home-title" lang="ja">${renderRubyText(themeJapanese.text, themeJapanese.reading)}</span>
-            <span class="body-association-home-meaning">${theme.meaning}</span>
-          </span>
-          <span class="theme-icon" aria-hidden="true">${theme.icon}</span>
-          <span class="theme-arrow" aria-hidden="true"><span>→</span></span>
-        `
-        : `
-          <span class="theme-card-copy">
-            <span class="theme-kicker">${theme.cardLabel}</span>
-            <h2 lang="ja">${renderRubyText(themeJapanese.text, themeJapanese.reading)}</h2>
-            <span class="theme-meta">${theme.title} · ${theme.description}</span>
-          </span>
-          <span class="theme-icon" aria-hidden="true">${theme.icon}</span>
-          <span class="theme-arrow" aria-hidden="true"><span>→</span></span>
-        `;
-      card.addEventListener("click", () => openTheme(theme.id));
-      fragment.appendChild(card);
+    if (!result.total) {
+      const empty = document.createElement("p");
+      empty.className = "unified-search-empty";
+      empty.textContent = "没有找到相关内容，试试更具体的日语、假名或中文词。";
+      fragment.appendChild(empty);
+    } else if (result.shortQuery) {
+      const note = document.createElement("p");
+      note.className = "unified-search-note";
+      note.textContent = "单字符搜索优先显示标题、假名和标签，已降低例句全文的权重。";
+      fragment.appendChild(note);
+    }
+
+    if (hiddenCount > 0) {
+      const more = document.createElement("button");
+      more.type = "button";
+      more.className = "unified-search-more";
+      more.dataset.searchMore = options.scope || "module";
+      more.textContent = `显示更多（还有 ${hiddenCount} 条）`;
+      fragment.appendChild(more);
+    }
+    container.replaceChildren(fragment);
+  }
+
+  function renderHomeSearch(rawQuery = elements.homeSearchInput.value) {
+    const query = String(rawQuery || "").trim();
+    elements.clearHomeSearchButton.hidden = !query;
+    if (!query) {
+      elements.homeSearchResults.hidden = true;
+      elements.homeSearchResults.replaceChildren();
+      elements.homeSearchStatus.textContent = "";
+      homeSearchExpanded = false;
+      return;
+    }
+    const result = window.GlobalSearch.search(query);
+    elements.homeSearchResults.hidden = false;
+    elements.homeSearchStatus.textContent = result.total
+      ? `找到 ${result.total} 条结果，核心词条优先。`
+      : "没有找到相关内容。";
+    renderSearchResults(elements.homeSearchResults, result, {
+      expanded: homeSearchExpanded,
+      includeSource: true,
+      scope: "home"
     });
+  }
 
+  function createThemeCard(theme, featured = false) {
+    const themeJapanese = getThemeJapanese(theme);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = `theme-card theme-card-${theme.id}${featured ? " theme-card--featured" : " theme-card--compact"}`;
+    card.dataset.themeId = theme.id;
+    card.setAttribute("aria-label", `进入${theme.title}主题，${theme.description}`);
+    card.innerHTML = `
+      ${theme.badge ? `<span class="body-association-home-badge">${escapeHTML(theme.id === "body-association" ? "联想学习" : theme.badge)}</span>` : ""}
+      <span class="body-association-home-copy">
+        <span class="body-association-home-title" lang="ja">${renderRubyText(themeJapanese.text, themeJapanese.reading)}</span>
+        <span class="body-association-home-meaning">${escapeHTML(theme.meaning || theme.description)}</span>
+      </span>
+      <span class="theme-icon" aria-hidden="true">${escapeHTML(theme.icon)}</span>
+      <span class="theme-arrow" aria-hidden="true"><span>→</span></span>
+    `;
+    card.addEventListener("click", () => window.AppRouter.navigate({ theme: theme.id }));
+    return card;
+  }
+
+  function createThemeCards() {
+    const visibleThemes = ALL_THEMES.filter((theme) => theme.id !== "body");
+    const groups = [
+      {
+        title: "快速查询",
+        description: "先找到需要的词、读法或句型",
+        ids: ["question-expressions", "date", "counter-association"],
+        featuredId: "question-expressions"
+      },
+      {
+        title: "联想学习",
+        description: "从一个主题继续展开相关词和表达",
+        ids: ["body-association", "fruit-association"]
+      },
+      {
+        title: "我的内容",
+        description: "记录自己的词、句子和联想关系",
+        ids: ["quick-association"]
+      }
+    ];
+    const fragment = document.createDocumentFragment();
+    groups.forEach((group) => {
+      const themes = group.ids.map((id) => visibleThemes.find((theme) => theme.id === id)).filter(Boolean);
+      if (!themes.length) return;
+      const section = document.createElement("section");
+      section.className = `home-module-section home-module-section--${group.ids[0]}`;
+      const heading = document.createElement("div");
+      heading.className = "home-module-heading";
+      const copy = document.createElement("div");
+      const title = document.createElement("h2");
+      title.textContent = group.title;
+      const description = document.createElement("p");
+      description.textContent = group.description;
+      copy.append(title, description);
+      const count = document.createElement("span");
+      count.textContent = `${themes.length} 个入口`;
+      heading.append(copy, count);
+      const grid = document.createElement("div");
+      grid.className = "theme-grid";
+      themes.forEach((theme) => grid.appendChild(createThemeCard(theme, theme.id === group.featuredId)));
+      section.append(heading, grid);
+      fragment.appendChild(section);
+    });
     elements.themeGrid.replaceChildren(fragment);
   }
 
@@ -403,9 +536,12 @@
     const theme = ALL_THEMES.find((item) => item.id === themeId);
     if (!theme) return;
 
-    clearTimeout(searchOpenTimer);
+    closeModal(false);
     if (activeTheme?.id === "question-expressions" && theme.id !== "question-expressions") {
       window.QuestionExpressionsModule?.leave();
+    }
+    if (activeTheme?.id === "quick-association" && theme.id !== "quick-association") {
+      window.AssociationModule?.leave();
     }
     activeTheme = theme;
     activeQuery = "";
@@ -432,12 +568,9 @@
     elements.app.focus({ preventScroll: true });
   }
 
-  function showHome(options = {}) {
-    clearTimeout(searchOpenTimer);
+  function showHome() {
     if (activeTheme?.id === "quick-association") window.AssociationModule?.leave();
-    if (activeTheme?.id === "question-expressions") {
-      window.QuestionExpressionsModule?.leave({ preserveHash: options?.fromHistory === true });
-    }
+    if (activeTheme?.id === "question-expressions") window.QuestionExpressionsModule?.leave();
     closeModal(false);
     activeTheme = null;
     activeQuery = "";
@@ -455,7 +588,9 @@
     activeQuery = normalize(rawQuery.trim());
     if (activeTheme.layout !== "question-encyclopedia") elements.branchList.className = "branch-list";
 
-    if (activeTheme.layout === "modal-categories") {
+    if (activeQuery && !["quick-association", "question-encyclopedia"].includes(activeTheme.layout)) {
+      renderModuleSearchResults(rawQuery);
+    } else if (activeTheme.layout === "modal-categories") {
       renderCategoryCards(activeQuery);
     } else if (activeTheme.layout === "body-association") {
       renderBodyAssociationLanding(activeQuery);
@@ -482,6 +617,23 @@
     } else {
       renderBranches(activeQuery);
     }
+  }
+
+  function renderModuleSearchResults(rawQuery, expanded = false) {
+    const result = window.GlobalSearch.search(rawQuery, { themeId: activeTheme.id });
+    const wrapper = document.createElement("section");
+    wrapper.className = "module-search-results";
+    renderSearchResults(wrapper, result, {
+      expanded,
+      includeSource: false,
+      scope: "module"
+    });
+    elements.branchList.className = "branch-list module-search-results-host";
+    elements.branchList.replaceChildren(wrapper);
+    elements.resultCount.textContent = result.total
+      ? `找到 ${result.total} 条结果 · 不会自动打开，请选择需要的内容`
+      : "没有找到相关内容";
+    elements.emptyState.hidden = true;
   }
 
   function renderCounterHome(query) {
@@ -737,16 +889,17 @@
       const button = document.createElement("button");
       button.type = "button";
       button.className = `body-association-stage-card${query && match?.section?.id === section.id ? " is-match" : ""}`;
+      button.dataset.bodySectionId = section.id;
       button.setAttribute("aria-label", `打开${section.meaning}联想浮窗`);
       button.innerHTML = `
         <span class="body-association-stage-word" lang="ja">${renderRubyText(section.title, section.reading)}</span>
-        <span class="body-association-stage-meaning">${section.meaning}</span>
+        <span class="body-association-stage-meaning">${escapeHTML(section.meaning)}</span>
         <span class="body-association-stage-open" aria-hidden="true">＋</span>
       `;
-      button.addEventListener("click", () => {
-        const matchedCategoryId = match?.section?.id === section.id ? match?.category?.id || "" : "";
-        openBodyAssociationModal(section, matchedCategoryId, query);
-      });
+      button.addEventListener("click", () => window.AppRouter.navigate({
+        theme: "body-association",
+        section: section.id
+      }));
       wrapper.appendChild(button);
     });
 
@@ -761,7 +914,7 @@
     elements.branchList.replaceChildren(wrapper);
     elements.emptyState.hidden = hasResult;
     elements.resultCount.textContent = query
-      ? hasResult ? `找到 ${matchingSections.length} 个新版人体联想 · 点击查看` : "没有找到新版人体联想"
+      ? hasResult ? `找到 ${matchingSections.length} 个人体联想 · 点击查看` : "没有找到人体联想"
       : `本阶段开放 ${activeTheme.sections.length} 个主题`;
   }
 
@@ -779,10 +932,13 @@
       card.setAttribute("aria-label", `打开${category.japanese}分类浮窗`);
       card.innerHTML = `
         <span class="category-japanese" lang="ja">${renderRubyText(category.japanese, category.kana)}</span>
-        <span class="category-chinese">${category.chinese}</span>
+        <span class="category-chinese">${escapeHTML(category.chinese)}</span>
         <span class="category-open" aria-hidden="true">＋</span>
       `;
-      card.addEventListener("click", () => openCategoryModal(category, query));
+      card.addEventListener("click", () => window.AppRouter.navigate({
+        theme: activeTheme.id,
+        category: category.id
+      }));
       fragment.appendChild(card);
     });
 
@@ -849,10 +1005,13 @@
     button.setAttribute("aria-label", `打开人体百科：${display.japanese}`);
     button.innerHTML = `
       <span class="word-japanese" lang="ja">${renderRubyText(display.japanese, display.kana)}</span>
-      <span class="word-chinese">${display.chinese}</span>
+      <span class="word-chinese">${escapeHTML(display.chinese)}</span>
       <span class="category-open" aria-hidden="true">＋</span>
     `;
-    button.addEventListener("click", () => openEncyclopediaModal(word, "", query));
+    button.addEventListener("click", () => window.AppRouter.navigate({
+      theme: "body",
+      item: "head-encyclopedia"
+    }));
     card.appendChild(button);
     return card;
   }
@@ -915,7 +1074,7 @@
     cell.className = `modal-cell${extraClass ? ` ${extraClass}` : ""}${matched ? " is-match" : ""}`;
     cell.innerHTML = `
       <span class="modal-cell-japanese" lang="ja">${renderRubyText(item.japanese, item.kana)}</span>
-      <span class="modal-cell-chinese">${item.chinese}</span>
+      <span class="modal-cell-chinese">${escapeHTML(item.chinese)}</span>
     `;
     return cell;
   }
@@ -1483,16 +1642,18 @@
         const button = document.createElement("button");
         button.type = "button";
         button.className = `body-association-category-card${query && itemMatches(item, normalize(query)) ? " is-match" : ""}`;
-        button.setAttribute("aria-label", `查看新版人体联想：${item.meaning}`);
+        button.dataset.bodyCategoryId = item.id;
+        button.setAttribute("aria-label", `查看人体联想：${item.meaning}`);
         button.innerHTML = `
           <span class="body-association-category-word" lang="ja">${renderRubyText(item.title, item.reading)}</span>
-          <span class="body-association-category-meaning">${item.meaning}</span>
+          <span class="body-association-category-meaning">${escapeHTML(item.meaning)}</span>
           <span class="body-association-category-arrow" aria-hidden="true">→</span>
         `;
-        button.addEventListener("click", () => {
-          renderBodyAssociationModal(section, item.id, "");
-          elements.modalContent.scrollTop = 0;
-        });
+        button.addEventListener("click", () => window.AppRouter.navigate({
+          theme: "body-association",
+          section: section.id,
+          category: item.id
+        }));
         grid.appendChild(button);
       });
 
@@ -1506,17 +1667,14 @@
     backButton.type = "button";
     backButton.className = "body-association-back";
     backButton.innerHTML = `<span aria-hidden="true">←</span><span>返回${escapeHTML(section.meaning)}总览</span>`;
-    backButton.addEventListener("click", () => {
-      renderBodyAssociationModal(section, "", "");
-      elements.modalContent.scrollTop = 0;
-    });
+    backButton.addEventListener("click", () => window.AppRouter.back());
     fragment.appendChild(backButton);
 
     const heading = document.createElement("div");
     heading.className = "body-association-detail-heading";
     heading.innerHTML = `
       <h3 lang="ja">${renderRubyText(category.title, category.reading)}</h3>
-      <p>${category.meaning}</p>
+      <p>${escapeHTML(category.meaning)}</p>
     `;
     fragment.appendChild(heading);
 
@@ -1540,7 +1698,7 @@
     scroller.className = "body-association-breadcrumb-scroll";
     const breadcrumb = document.createElement("nav");
     breadcrumb.className = "body-association-breadcrumb";
-    breadcrumb.setAttribute("aria-label", "新版人体联想位置");
+    breadcrumb.setAttribute("aria-label", "人体联想位置");
     breadcrumb.innerHTML = `
       <span lang="ja">${renderRubyText("人体联想", bodyAssociationData.reading)}</span>
       <span aria-hidden="true">›</span>
@@ -1664,7 +1822,7 @@
     toggle.setAttribute("aria-controls", `${id}-detail`);
     toggle.innerHTML = `
       <span class="body-association-word" lang="ja">${renderRubyText(item.word, item.reading)}</span>
-      <span class="body-association-meaning">${item.meaning}</span>
+      <span class="body-association-meaning">${escapeHTML(item.meaning)}</span>
       <span class="body-association-expand" aria-hidden="true"></span>
     `;
 
@@ -1674,14 +1832,14 @@
     detail.innerHTML = `
       <div class="body-association-card-detail-inner">
         <p class="body-association-detail-label">说明</p>
-        <p class="body-association-description">${item.description}</p>
+        <p class="body-association-description">${escapeHTML(item.description)}</p>
         <p class="body-association-detail-label">常见搭配</p>
         <div class="body-association-collocations">
-          ${item.collocations.map((entry) => `<span lang="ja">${entry}</span>`).join("")}
+          ${(item.collocations || []).map((entry) => `<span lang="ja">${escapeHTML(entry)}</span>`).join("")}
         </div>
         <p class="body-association-detail-label">例句</p>
         <p class="body-association-example" lang="ja">${renderRubyText(item.example, item.exampleReading)}</p>
-        <p class="body-association-translation">${item.translation}</p>
+        <p class="body-association-translation">${escapeHTML(item.translation)}</p>
       </div>
     `;
 
@@ -1740,13 +1898,14 @@
         button.setAttribute("aria-label", `查看${item.meaning}`);
         button.innerHTML = `
           <span class="encyclopedia-category-title" lang="ja">${renderRubyText(item.title, item.reading)}</span>
-          <span class="encyclopedia-category-meaning">${item.meaning}</span>
+          <span class="encyclopedia-category-meaning">${escapeHTML(item.meaning)}</span>
           <span class="encyclopedia-category-arrow" aria-hidden="true">→</span>
         `;
-        button.addEventListener("click", () => {
-          renderEncyclopedia(word, item.id, "");
-          elements.modalContent.scrollTop = 0;
-        });
+        button.addEventListener("click", () => window.AppRouter.navigate({
+          theme: "body",
+          item: "head-encyclopedia",
+          category: item.id
+        }));
         grid.appendChild(button);
       });
 
@@ -1760,17 +1919,14 @@
     backButton.type = "button";
     backButton.className = "encyclopedia-back";
     backButton.innerHTML = `<span aria-hidden="true">←</span><span>返回头部总览</span>`;
-    backButton.addEventListener("click", () => {
-      renderEncyclopedia(word, "", "");
-      elements.modalContent.scrollTop = 0;
-    });
+    backButton.addEventListener("click", () => window.AppRouter.back());
     fragment.appendChild(backButton);
 
     const heading = document.createElement("div");
     heading.className = "encyclopedia-detail-heading";
     heading.innerHTML = `
       <h3 lang="ja">${renderRubyText(category.title, category.reading)}</h3>
-      <p>${category.meaning}</p>
+      <p>${escapeHTML(category.meaning)}</p>
     `;
     fragment.appendChild(heading);
 
@@ -1817,9 +1973,9 @@
     toggle.setAttribute("aria-expanded", "false");
     toggle.setAttribute("aria-controls", `${id}-detail`);
     toggle.innerHTML = `
-      ${item.level ? `<span class="encyclopedia-level encyclopedia-level--${item.level === "进阶" ? "advanced" : "basic"}">${item.level}</span>` : ""}
+      ${item.level ? `<span class="encyclopedia-level encyclopedia-level--${item.level === "进阶" ? "advanced" : "basic"}">${escapeHTML(item.level)}</span>` : ""}
       <span class="encyclopedia-word" lang="ja">${renderRubyText(item.word, item.reading)}</span>
-      <span class="encyclopedia-meaning">${item.meaning}</span>
+      <span class="encyclopedia-meaning">${escapeHTML(item.meaning)}</span>
       <span class="encyclopedia-expand" aria-hidden="true"></span>
     `;
 
@@ -1829,10 +1985,10 @@
     detail.innerHTML = `
       <div class="encyclopedia-card-detail-inner">
         <p class="encyclopedia-detail-label">说明</p>
-        <p class="encyclopedia-description">${item.description}</p>
+        <p class="encyclopedia-description">${escapeHTML(item.description)}</p>
         <p class="encyclopedia-detail-label">例句</p>
         <p class="encyclopedia-example" lang="ja">${renderRubyText(item.example, item.exampleReading)}</p>
-        <p class="encyclopedia-translation">${item.translation}</p>
+        <p class="encyclopedia-translation">${escapeHTML(item.translation)}</p>
       </div>
     `;
 
@@ -1855,55 +2011,6 @@
     });
   }
 
-  function scheduleSearchNavigation(rawQuery) {
-    clearTimeout(searchOpenTimer);
-    const query = normalize(rawQuery.trim());
-    if (!query) return;
-    if (activeTheme?.id === "quick-association") return;
-
-    searchOpenTimer = window.setTimeout(() => {
-      if (normalize(elements.searchInput.value.trim()) !== query) return;
-      if (activeTheme?.id === "fruit-association") {
-        const fruitMatch = findFruitMatch(query);
-        if (!fruitMatch) return;
-        if (fruitMatch.type === "common") {
-          openFruitModal("", "", query, "common");
-        } else {
-          openFruitModal(fruitMatch.fruit.categoryId, fruitMatch.fruit.id, query);
-        }
-        return;
-      }
-
-      if (activeTheme?.id === "counter-association") {
-        const counterMatch = findCounterMatch(query);
-        if (!counterMatch) return;
-        openCounterModal(counterMatch.counter.categoryId, counterMatch.counter.id, query);
-        return;
-      }
-
-      const associationMatch = findBodyAssociationMatch(query);
-      if (associationMatch) {
-        if (!activeTheme || activeTheme.id !== bodyAssociationData.id) {
-          openTheme(bodyAssociationData.id, rawQuery.trim());
-        }
-        openBodyAssociationModal(
-          associationMatch.section,
-          associationMatch.category ? associationMatch.category.id : "",
-          query
-        );
-        return;
-      }
-
-      const match = findGlobalEncyclopediaMatch(query);
-      if (!match) return;
-
-      if (!activeTheme || activeTheme.id !== match.theme.id) {
-        openTheme(match.theme.id, rawQuery.trim());
-      }
-      openEncyclopediaModal(match.word, match.category ? match.category.id : "", query);
-    }, 320);
-  }
-
   function closeModal(restoreFocus = true) {
     if (elements.modalBackdrop.hidden) return;
     elements.modalBackdrop.hidden = true;
@@ -1917,6 +2024,90 @@
     lastFocusedElement = null;
   }
 
+  function requestModalClose() {
+    const route = window.AppRouter.current();
+    const hasDetail = Boolean(route.section || route.category || route.item || route.view);
+    if (route.theme === activeTheme?.id && hasDetail) window.AppRouter.back();
+    else closeModal();
+  }
+
+  function applyRoute(route) {
+    if (!route.theme) {
+      showHome();
+      return;
+    }
+
+    const theme = ALL_THEMES.find((item) => item.id === route.theme);
+    if (!theme) {
+      window.AppRouter.replace({ page: "home" }, { silent: true });
+      showHome();
+      return;
+    }
+
+    if (theme.id === "question-expressions" && activeTheme?.id === theme.id && window.QuestionExpressionsModule?.isActive?.()) {
+      window.QuestionExpressionsModule.applyRoute(route);
+      return;
+    }
+
+    if (activeTheme?.id === theme.id) closeModal(false);
+    else openTheme(theme.id);
+    const focus = route.focus || "";
+
+    if (theme.id === "question-expressions") {
+      window.QuestionExpressionsModule?.applyRoute(route);
+      return;
+    }
+
+    if (theme.id === "quick-association") {
+      window.AssociationModule?.applyRoute?.(route);
+      return;
+    }
+
+    if (theme.id === "date" && route.category) {
+      const category = theme.categories.find((item) => item.id === route.category);
+      if (category) openCategoryModal(category, focus);
+      else window.AppRouter.replace({ theme: theme.id }, { silent: true });
+      return;
+    }
+
+    if (theme.id === "body-association" && route.section) {
+      const section = bodyAssociationData.sections.find((item) => item.id === route.section);
+      const category = section?.categories.find((item) => item.id === route.category);
+      if (section && (!route.category || category)) openBodyAssociationModal(section, category?.id || "", focus);
+      else window.AppRouter.replace({ theme: theme.id }, { silent: true });
+      return;
+    }
+
+    if (theme.id === "counter-association" && (route.category || route.item)) {
+      const counter = route.item ? getCounterById(route.item) : null;
+      const categoryId = route.category || counter?.categoryId;
+      const category = getCounterCategory(categoryId);
+      if (category && (!route.item || counter)) openCounterModal(category.id, counter?.id || "", focus);
+      else window.AppRouter.replace({ theme: theme.id }, { silent: true });
+      return;
+    }
+
+    if (theme.id === "fruit-association" && (route.category || route.item || route.view)) {
+      if (route.view === "common") {
+        openFruitModal("", "", focus, "common");
+        return;
+      }
+      const fruit = route.item ? getFruitById(route.item) : null;
+      const categoryId = route.category || fruit?.categoryId;
+      const category = getFruitCategory(categoryId);
+      if (category && (!route.item || fruit)) openFruitModal(category.id, fruit?.id || "", focus);
+      else window.AppRouter.replace({ theme: theme.id }, { silent: true });
+      return;
+    }
+
+    if (theme.id === "body" && route.item === "head-encyclopedia") {
+      const word = theme.branches.flatMap((branch) => branch.words || []).find((item) => item.displayType === "encyclopedia");
+      const category = word?.categories?.find((item) => item.id === route.category);
+      if (word && (!route.category || category)) openEncyclopediaModal(word, category?.id || "", focus);
+      else window.AppRouter.replace({ theme: theme.id }, { silent: true });
+    }
+  }
+
   function createWordCard(word, id, query) {
     const card = document.createElement("article");
     card.className = "word-card";
@@ -1927,7 +2118,7 @@
     toggle.setAttribute("aria-controls", `association-${id}`);
     toggle.innerHTML = `
       <span class="word-japanese" lang="ja">${renderRubyText(word.japanese, word.kana)}</span>
-      <span class="word-chinese">${word.chinese}</span>
+      <span class="word-chinese">${escapeHTML(word.chinese)}</span>
       <span class="expand-mark" aria-hidden="true"></span>
     `;
 
@@ -1963,7 +2154,7 @@
     return `
       <div class="related-item${matched}">
         <span class="related-japanese" lang="ja">${renderRubyText(item.japanese, item.kana)}</span>
-        <span class="related-chinese">${item.chinese}</span>
+        <span class="related-chinese">${escapeHTML(item.chinese)}</span>
       </div>
     `;
   }
@@ -1973,56 +2164,92 @@
     return `
       <div class="sentence-item${matched}">
         <p class="sentence-japanese" lang="ja">${renderRubyText(item.japanese, item.kana)}</p>
-        <p class="sentence-chinese">${item.chinese}</p>
+        <p class="sentence-chinese">${escapeHTML(item.chinese)}</p>
       </div>
     `;
   }
 
   elements.searchInput.addEventListener("input", (event) => {
     renderActiveTheme(event.target.value);
-    scheduleSearchNavigation(event.target.value);
   });
 
   elements.clearSearchButton.addEventListener("click", () => {
-    clearTimeout(searchOpenTimer);
     elements.searchInput.value = "";
     renderActiveTheme("");
     elements.searchInput.focus();
   });
 
+  elements.homeSearchInput.addEventListener("input", (event) => {
+    homeSearchExpanded = false;
+    renderHomeSearch(event.target.value);
+  });
+  elements.clearHomeSearchButton.addEventListener("click", () => {
+    elements.homeSearchInput.value = "";
+    renderHomeSearch("");
+    elements.homeSearchInput.focus();
+  });
+  elements.homeSearchResults.addEventListener("click", (event) => {
+    const result = event.target.closest("[data-search-route]");
+    if (result) {
+      window.AppRouter.navigate(JSON.parse(result.dataset.searchRoute));
+      return;
+    }
+    if (event.target.closest('[data-search-more="home"]')) {
+      homeSearchExpanded = true;
+      renderHomeSearch();
+    }
+  });
+
   elements.branchList.addEventListener("click", (event) => {
+    const searchResult = event.target.closest("[data-search-route]");
+    if (searchResult) {
+      window.AppRouter.navigate(JSON.parse(searchResult.dataset.searchRoute));
+      return;
+    }
+    const moreButton = event.target.closest('[data-search-more="module"]');
+    if (moreButton) {
+      renderModuleSearchResults(elements.searchInput.value, true);
+      return;
+    }
+
     if (activeTheme?.id === "counter-association") {
       const counterButton = event.target.closest("[data-counter-id]");
       if (counterButton) {
-        openCounterModal(
-          counterButton.dataset.counterCategoryId,
-          counterButton.dataset.counterId,
-          activeQuery
-        );
+        window.AppRouter.navigate({
+          theme: "counter-association",
+          category: counterButton.dataset.counterCategoryId,
+          item: counterButton.dataset.counterId
+        });
         return;
       }
       const categoryButton = event.target.closest("[data-counter-category-id]");
-      if (categoryButton) openCounterModal(categoryButton.dataset.counterCategoryId, "", activeQuery);
+      if (categoryButton) window.AppRouter.navigate({
+        theme: "counter-association",
+        category: categoryButton.dataset.counterCategoryId
+      });
       return;
     }
 
     if (activeTheme?.id === "fruit-association") {
       const commonButton = event.target.closest('[data-fruit-view="common"]');
       if (commonButton) {
-        openFruitModal("", "", activeQuery, "common");
+        window.AppRouter.navigate({ theme: "fruit-association", view: "common" });
         return;
       }
       const fruitButton = event.target.closest("[data-fruit-id]");
       if (fruitButton) {
-        openFruitModal(
-          fruitButton.dataset.fruitCategoryId,
-          fruitButton.dataset.fruitId,
-          activeQuery
-        );
+        window.AppRouter.navigate({
+          theme: "fruit-association",
+          category: fruitButton.dataset.fruitCategoryId,
+          item: fruitButton.dataset.fruitId
+        });
         return;
       }
       const categoryButton = event.target.closest("[data-fruit-category-id]");
-      if (categoryButton) openFruitModal(categoryButton.dataset.fruitCategoryId, "", activeQuery);
+      if (categoryButton) window.AppRouter.navigate({
+        theme: "fruit-association",
+        category: categoryButton.dataset.fruitCategoryId
+      });
     }
   });
 
@@ -2030,26 +2257,24 @@
     if (elements.categoryModal.classList.contains("modal-sheet--fruit")) {
       const viewButton = event.target.closest("[data-fruit-view]");
       if (viewButton?.dataset.fruitView === "root") {
-        closeModal();
+        window.AppRouter.back();
         return;
       }
       if (viewButton?.dataset.fruitView === "category") {
-        const category = getFruitCategory(viewButton.dataset.fruitCategoryId);
-        if (category) {
-          renderFruitModal(category, null, "");
-          elements.modalContent.scrollTop = 0;
-        }
+        window.AppRouter.navigate({
+          theme: "fruit-association",
+          category: viewButton.dataset.fruitCategoryId
+        });
         return;
       }
 
       const fruitButton = event.target.closest("[data-fruit-id]");
       if (fruitButton) {
-        const category = getFruitCategory(fruitButton.dataset.fruitCategoryId);
-        const fruit = getFruitById(fruitButton.dataset.fruitId);
-        if (category && fruit) {
-          renderFruitModal(category, fruit, "");
-          elements.modalContent.scrollTop = 0;
-        }
+        window.AppRouter.navigate({
+          theme: "fruit-association",
+          category: fruitButton.dataset.fruitCategoryId,
+          item: fruitButton.dataset.fruitId
+        });
         return;
       }
 
@@ -2057,9 +2282,11 @@
       if (counterLink && hasCounterModule) {
         const linkedCounter = getCounterById(counterLink.dataset.fruitCounterLink);
         if (linkedCounter) {
-          closeModal(false);
-          openTheme("counter-association");
-          openCounterModal(linkedCounter.categoryId, linkedCounter.id, "");
+          window.AppRouter.navigate({
+            theme: "counter-association",
+            category: linkedCounter.categoryId,
+            item: linkedCounter.id
+          });
         }
       }
       return;
@@ -2069,26 +2296,24 @@
 
     const viewButton = event.target.closest("[data-counter-view]");
     if (viewButton?.dataset.counterView === "root") {
-      closeModal();
+      window.AppRouter.back();
       return;
     }
     if (viewButton?.dataset.counterView === "category") {
-      const category = getCounterCategory(viewButton.dataset.counterCategoryId);
-      if (category) {
-        renderCounterModal(category, null, "");
-        elements.modalContent.scrollTop = 0;
-      }
+      window.AppRouter.navigate({
+        theme: "counter-association",
+        category: viewButton.dataset.counterCategoryId
+      });
       return;
     }
 
     const counterButton = event.target.closest("[data-counter-id]");
     if (counterButton) {
-      const category = getCounterCategory(counterButton.dataset.counterCategoryId);
-      const counter = getCounterById(counterButton.dataset.counterId);
-      if (category && counter) {
-        renderCounterModal(category, counter, "");
-        elements.modalContent.scrollTop = 0;
-      }
+      window.AppRouter.navigate({
+        theme: "counter-association",
+        category: counterButton.dataset.counterCategoryId,
+        item: counterButton.dataset.counterId
+      });
       return;
     }
 
@@ -2096,21 +2321,19 @@
     if (objectButton) objectButton.classList.toggle("is-selected");
   });
 
-  elements.modalCloseButton.addEventListener("click", () => closeModal());
+  elements.modalCloseButton.addEventListener("click", requestModalClose);
   elements.modalBackdrop.addEventListener("click", (event) => {
-    if (event.target === elements.modalBackdrop) closeModal();
+    if (event.target === elements.modalBackdrop) requestModalClose();
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !elements.modalBackdrop.hidden) closeModal();
+    if (event.key === "Escape" && !elements.modalBackdrop.hidden) requestModalClose();
   });
-  elements.backButton.addEventListener("click", showHome);
+  elements.backButton.addEventListener("click", () => window.AppRouter.back());
   elements.brand.addEventListener("click", (event) => {
     event.preventDefault();
-    showHome();
+    window.AppRouter.home();
   });
 
   createThemeCards();
-  if (questionExpressionsTheme && window.QuestionExpressionsModule?.isQuestionHash()) {
-    openTheme(questionExpressionsTheme.id);
-  }
+  window.AppRouter.start(applyRoute);
 })();

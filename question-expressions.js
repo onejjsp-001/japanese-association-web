@@ -25,6 +25,7 @@
   const state = {
     context: null,
     entryMap: new Map(),
+    entrySectionMap: new Map(),
     aliasMap: new Map(),
     searchItems: [],
     observer: null,
@@ -57,6 +58,7 @@
 
   function buildIndexes() {
     state.entryMap.clear();
+    state.entrySectionMap.clear();
     state.aliasMap.clear();
     state.searchItems = [];
     (data.extraAnchors || []).forEach((anchor) => {
@@ -66,24 +68,36 @@
     });
 
     const groups = [
-      ["提问目的", data.purposes],
-      ["疑问词", data.questionWords],
-      ["疑问句型", data.questionPatterns],
-      ["语气对比", data.comparisons],
-      ["场景", data.scenes],
-      ["常见错误", data.mistakes]
+      ["提问目的", "questions-purposes", data.purposes],
+      ["疑问词", "questions-words", data.questionWords],
+      ["疑问句型", "questions-patterns", data.questionPatterns],
+      ["语气对比", "questions-comparisons", data.comparisons],
+      ["场景", "questions-scenes", data.scenes],
+      ["常见错误", "questions-mistakes", data.mistakes]
     ];
-    groups.forEach(([category, items]) => {
+    groups.forEach(([category, sectionId, items]) => {
       (items || []).forEach((item) => {
         state.entryMap.set(item.id, item);
+        state.entrySectionMap.set(item.id, sectionId);
         state.searchItems.push({ category, item });
       });
     });
   }
 
   function isQuestionHash(hash = window.location.hash) {
+    const route = window.AppRouter?.parse(hash);
+    if (route?.theme === "question-expressions") return true;
     const id = decodeURIComponent(String(hash || "").replace(/^#/, ""));
     return Boolean(id && (sectionIds.has(id) || state.entryMap.has(resolveId(id))));
+  }
+
+  function routeForTarget(rawId) {
+    const id = resolveId(rawId);
+    if (sectionIds.has(id)) return { theme: "question-expressions", section: id };
+    const section = state.entrySectionMap.get(id);
+    return section
+      ? { theme: "question-expressions", section, entry: id }
+      : { theme: "question-expressions", section: "questions-overview" };
   }
 
   function renderTags(values, className = "qe-tag") {
@@ -339,12 +353,12 @@
 
   function scrollToTarget(rawId, options = {}) {
     const id = resolveId(rawId);
+    if (options.push !== false && window.AppRouter) {
+      window.AppRouter.navigate(routeForTarget(id));
+      return true;
+    }
     const target = document.getElementById(id);
     if (!target) return false;
-    if (options.push !== false && window.location.hash !== `#${id}`) {
-      history.replaceState({ ...(history.state || {}), questionScrollY: window.scrollY }, "", window.location.href);
-      history.pushState({ questionModule: true }, "", `#${id}`);
-    }
     target.scrollIntoView({ behavior: options.instant ? "auto" : "smooth", block: "start" });
     if (sectionIds.has(id)) updateActiveNav(id);
     if (target.matches("[data-qe-entry]")) {
@@ -389,8 +403,11 @@
       const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
       if (visible) {
         updateActiveNav(visible.target.id);
-        if (Date.now() > state.manualEntryUntil && window.location.hash !== `#${visible.target.id}`) {
-          history.replaceState({ ...(history.state || {}), questionModule: true, questionScrollY: window.scrollY }, "", `#${visible.target.id}`);
+        if (Date.now() > state.manualEntryUntil && window.AppRouter) {
+          const current = window.AppRouter.current();
+          if (!current.entry && current.section !== visible.target.id) {
+            window.AppRouter.replace(routeForTarget(visible.target.id), { silent: true });
+          }
         }
       }
     }, { rootMargin: "-20% 0px -65%", threshold: [0, 0.15, 0.4] });
@@ -401,7 +418,7 @@
   }
 
   function render(context) {
-    leave({ preserveHash: true });
+    leave();
     state.context = context;
     state.active = true;
     buildIndexes();
@@ -413,24 +430,27 @@
     context.container.addEventListener("input", handleInput);
     document.addEventListener("keydown", handleKeydown);
     observeSections();
+    applyRoute(window.AppRouter?.current() || { theme: "question-expressions", section: "questions-overview" });
+  }
 
+  function applyRoute(route = {}) {
+    if (!state.active) return;
+    const entry = resolveId(route.entry || "");
+    const targetId = state.entryMap.has(entry)
+      ? entry
+      : sectionIds.has(route.section)
+        ? route.section
+        : "questions-overview";
     requestAnimationFrame(() => {
-      const id = resolveId(decodeURIComponent(window.location.hash.replace(/^#/, "")));
-      if (isQuestionHash(`#${id}`)) {
-        scrollToTarget(id, { push: false, instant: true });
-        state.restoreTimer = window.setTimeout(() => {
-          if (state.active && window.location.hash === `#${id}`) scrollToTarget(id, { push: false, instant: true });
-        }, 180);
-      }
-      else {
-        history.pushState({ questionModule: true }, "", "#questions-overview");
-        window.scrollTo(0, 0);
-        updateActiveNav("questions-overview");
-      }
+      scrollToTarget(targetId, { push: false, instant: true });
+      window.clearTimeout(state.restoreTimer);
+      state.restoreTimer = window.setTimeout(() => {
+        if (state.active) scrollToTarget(targetId, { push: false, instant: true });
+      }, 120);
     });
   }
 
-  function leave(options = {}) {
+  function leave() {
     if (!state.active) return;
     state.observer?.disconnect();
     state.observer = null;
@@ -440,30 +460,16 @@
     state.context?.container.removeEventListener("input", handleInput);
     document.removeEventListener("keydown", handleKeydown);
     state.active = false;
-    if (!options.preserveHash && isQuestionHash()) {
-      history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
-    }
     state.context = null;
   }
-
-  window.addEventListener("popstate", (event) => {
-    if (!state.active) return;
-    if (isQuestionHash()) {
-      const id = resolveId(decodeURIComponent(window.location.hash.slice(1)));
-      requestAnimationFrame(() => {
-        if (Number.isFinite(event.state?.questionScrollY)) window.scrollTo(0, event.state.questionScrollY);
-        else scrollToTarget(id, { push: false, instant: true });
-      });
-    } else {
-      state.context?.showHome?.({ fromHistory: true });
-    }
-  });
 
   buildIndexes();
   window.QuestionExpressionsModule = {
     theme: data,
     render,
     leave,
+    applyRoute,
+    isActive: () => state.active,
     isQuestionHash,
     searchData,
     navigateTo: scrollToTarget

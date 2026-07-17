@@ -853,14 +853,14 @@ const bodyAssociationExample = (text, meaning, segments = [], searchTerms = []) 
 
 const bodyAssociationData = {
   id: "body-association",
-  title: "人体联想（新版）",
+  title: "人体联想",
   japaneseTitle: "人体联想 · からだれんそう",
   reading: "からだれんそう",
-  meaning: "人体联想（新版）",
-  icon: "新",
+  meaning: "从身体部位展开日常词和表达",
+  icon: "体",
   cardLabel: "BODY ASSOCIATION",
   description: "全身部位 · 日常动作与会话",
-  badge: "测试版",
+  badge: "联想学习",
   layout: "body-association",
   sections: [
     {

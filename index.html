@@ -7,7 +7,7 @@
     <link rel="icon" href="data:," />
     <meta
       name="description"
-      content="从日常核心词出发，联想可以直接开口照搬的日语说法。"
+      content="从词汇、句型和场景出发，顺着联系找到真正能开口使用的日语表达。"
     />
     <title>ことばの枝｜日语联想学习</title>
     <link rel="stylesheet" href="./style.css" />
@@ -31,11 +31,34 @@
         <section id="homeView" class="view home-view" aria-labelledby="homeTitle">
           <div class="hero">
             <p class="eyebrow">日语开口联想</p>
-            <h1 id="homeTitle">想到一个词，<br />顺口说出一串话。</h1>
-            <p class="hero-copy">不讲语法，只给你日常真正会说的词和句子。</p>
+            <h1 id="homeTitle">想到一个词，<br />顺着联系说出更多日语。</h1>
+            <p class="hero-copy">从词汇、句型和场景出发，找到真正能开口使用的表达。</p>
           </div>
 
-          <div id="themeGrid" class="theme-grid" aria-label="学习主题"></div>
+          <section class="home-search-panel" aria-labelledby="homeSearchTitle">
+            <div class="home-search-heading">
+              <div>
+                <p class="home-section-kicker">全站查询</p>
+                <h2 id="homeSearchTitle">从一个词开始找</h2>
+              </div>
+              <span>日语 · 假名 · 中文</span>
+            </div>
+            <label class="home-search-box" for="homeSearchInput">
+              <span class="search-icon" aria-hidden="true"></span>
+              <input
+                id="homeSearchInput"
+                type="search"
+                inputmode="search"
+                autocomplete="off"
+                placeholder="例如：どこで、眼睛、りんご、一本"
+              />
+              <button id="clearHomeSearchButton" type="button" aria-label="清除全站搜索" hidden>×</button>
+            </label>
+            <p id="homeSearchStatus" class="home-search-status" aria-live="polite"></p>
+            <div id="homeSearchResults" class="home-search-results" hidden></div>
+          </section>
+
+          <div id="themeGrid" class="home-module-groups" aria-label="学习主题"></div>
 
           <p class="home-tip">
             <span aria-hidden="true">ひとつずつ</span>
@@ -100,6 +123,8 @@
     <script src="./questionExpressionsData.js"></script>
     <script src="./association-db.js"></script>
     <script src="./association.js"></script>
+    <script src="./router.js"></script>
+    <script src="./search.js"></script>
     <script src="./question-expressions.js"></script>
     <script src="./script.js"></script>
   </body>
