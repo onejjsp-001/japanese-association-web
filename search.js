@@ -26,6 +26,11 @@
       item.description,
       item.example,
       item.exampleMeaning,
+      item.motion,
+      item.distinction,
+      item.formalLevel,
+      ...(item.aliases || []),
+      ...(item.particles || []),
       ...(item.searchTerms || []),
       ...(item.segments || []).flatMap((segment) => [segment.text, segment.reading])
     ].filter(Boolean).join(" ");
@@ -44,7 +49,7 @@
       meaning: record.meaning || "",
       summary: record.summary || record.meaning || "",
       tags: (record.tags || []).filter(Boolean),
-      searchTerms: (record.searchTerms || []).filter(Boolean),
+      searchTerms: [...(record.aliases || []), ...(record.searchTerms || [])].filter(Boolean),
       collocations: (record.collocations || []).map(textOf).filter(Boolean),
       details: (record.details || []).map(textOf).filter(Boolean),
       examples: (record.examples || []).map(textOf).filter(Boolean),
@@ -266,6 +271,62 @@
     });
   }
 
+  function buildSpaceMovementIndex(list) {
+    if (typeof spaceMovementData === "undefined") return;
+    (spaceMovementData.sections || []).forEach((section) => {
+      addRecord(list, {
+        id: `space:${section.id}`,
+        themeId: "space-movement",
+        source: "空间、方位与移动",
+        importance: 82,
+        title: section.japaneseTitle,
+        reading: section.reading,
+        meaning: section.title,
+        summary: section.meaning,
+        tags: ["空间", "方位", "移动", "问路", section.title],
+        searchTerms: [section.meaning, section.summary],
+        route: { section: section.id }
+      });
+
+      (section.items || []).forEach((entry) => {
+        addRecord(list, {
+          id: `space:${section.id}:${entry.id}`,
+          themeId: "space-movement",
+          source: "空间、方位与移动",
+          importance: entry.type === "scene" ? 99 : entry.type === "particle" ? 98 : 95,
+          title: entry.title,
+          reading: entry.reading,
+          meaning: entry.meaning,
+          summary: entry.summary,
+          aliases: entry.aliases,
+          tags: [
+            "空间",
+            "方位",
+            "移动",
+            section.title,
+            section.meaning,
+            entry.type === "scene" ? "问路场景" : entry.type === "particle" ? "助词路径" : "核心词汇",
+            ...(entry.tags || [])
+          ],
+          searchTerms: [
+            ...(entry.searchTerms || []),
+            ...(entry.particles || []),
+            ...(entry.crossLinks || []).map((link) => link.label)
+          ],
+          collocations: entry.collocations,
+          details: [entry.motion, entry.distinction, entry.formalLevel],
+          examples: [
+            ...(entry.examples || []),
+            ...(entry.ask || []),
+            ...(entry.answers || []),
+            ...(entry.copyPhrases || [])
+          ],
+          route: { section: section.id, item: entry.id }
+        });
+      });
+    });
+  }
+
   function buildQuestionIndex(list) {
     if (typeof QUESTION_EXPRESSIONS_DATA === "undefined") return;
     const groups = [
@@ -302,6 +363,7 @@
     buildBodyIndex(list);
     buildCounterIndex(list);
     buildFruitIndex(list);
+    buildSpaceMovementIndex(list);
     buildQuestionIndex(list);
     records = list;
     return list;

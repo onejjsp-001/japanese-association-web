@@ -36,10 +36,12 @@
   const hasCounterModule = typeof counterAssociationData !== "undefined";
   const associationTheme = window.AssociationModule?.theme || null;
   const questionExpressionsTheme = window.QuestionExpressionsModule?.theme || null;
+  const spaceMovementTheme = window.SpaceMovementModule?.theme || null;
   const ALL_THEMES = [
     ...LEARNING_DATA,
     bodyAssociationData,
     ...(hasCounterModule ? [counterAssociationData] : []),
+    ...(spaceMovementTheme ? [spaceMovementTheme] : []),
     fruitAssociationData,
     ...(associationTheme ? [associationTheme] : []),
     ...(questionExpressionsTheme ? [questionExpressionsTheme] : [])
@@ -498,7 +500,7 @@
       {
         title: "联想学习",
         description: "从一个主题继续展开相关词和表达",
-        ids: ["body-association", "fruit-association"]
+        ids: ["body-association", "space-movement", "fruit-association"]
       },
       {
         title: "我的内容",
@@ -543,6 +545,9 @@
     if (activeTheme?.id === "quick-association" && theme.id !== "quick-association") {
       window.AssociationModule?.leave();
     }
+    if (activeTheme?.id === "space-movement" && theme.id !== "space-movement") {
+      window.SpaceMovementModule?.leave();
+    }
     activeTheme = theme;
     activeQuery = "";
     const themeJapanese = getThemeJapanese(theme);
@@ -554,6 +559,8 @@
       ? "搜索物品、量词或读法"
       : theme.id === "fruit-association"
         ? "搜索水果、味道、动作或中文"
+        : theme.id === "space-movement"
+          ? "搜索方位、移动、助词、问路或中文"
         : theme.id === "quick-association"
           ? "搜索日语、假名、中文、标签或关联"
         : theme.id === "question-expressions"
@@ -571,6 +578,7 @@
   function showHome() {
     if (activeTheme?.id === "quick-association") window.AssociationModule?.leave();
     if (activeTheme?.id === "question-expressions") window.QuestionExpressionsModule?.leave();
+    if (activeTheme?.id === "space-movement") window.SpaceMovementModule?.leave();
     closeModal(false);
     activeTheme = null;
     activeQuery = "";
@@ -598,6 +606,13 @@
       renderCounterHome(activeQuery);
     } else if (activeTheme.layout === "fruit-association") {
       renderFruitHome(activeQuery);
+    } else if (activeTheme.layout === "space-movement") {
+      window.SpaceMovementModule?.render({
+        container: elements.branchList,
+        resultCount: elements.resultCount,
+        emptyState: elements.emptyState,
+        utils: window.SiteUtils
+      });
     } else if (activeTheme.layout === "quick-association") {
       window.AssociationModule?.render({
         container: elements.branchList,
@@ -1028,6 +1043,7 @@
     elements.categoryModal.classList.remove("modal-sheet--body-association");
     elements.categoryModal.classList.remove("modal-sheet--counter");
     elements.categoryModal.classList.remove("modal-sheet--fruit");
+    elements.categoryModal.classList.remove("modal-sheet--space");
     elements.modalKana.lang = "ja";
     elements.modalKana.textContent = "";
     elements.modalTitle.innerHTML = renderRubyText(category.japanese, category.kana);
@@ -2060,6 +2076,13 @@
 
     if (theme.id === "quick-association") {
       window.AssociationModule?.applyRoute?.(route);
+      return;
+    }
+
+    if (theme.id === "space-movement") {
+      window.SpaceMovementModule?.applyRoute?.(route, {
+        preserveBackground: Boolean(elements.searchInput.value.trim())
+      });
       return;
     }
 
